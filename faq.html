@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>テスト制作 FAQ</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Sans","Meiryo",sans-serif;font-size:14px;background:#f5f5f2;color:#1a1a1a;line-height:1.6}
+header{background:#1F4E79;color:#fff;padding:14px 20px}
+header h1{font-size:16px;font-weight:500}
+header p{font-size:12px;opacity:0.65;margin-top:2px}
+.toolbar{background:#fff;border-bottom:1px solid #e0e0d8;padding:10px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.toolbar input{flex:1;min-width:180px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px}
+.toolbar select{padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;background:#fff}
+main{padding:16px 20px;max-width:860px;margin:0 auto}
+.count{font-size:12px;color:#888;margin-bottom:10px}
+.faq-card{background:#fff;border:1px solid #e0e0d8;border-radius:8px;margin-bottom:6px;overflow:hidden}
+.faq-head{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;cursor:pointer;user-select:none}
+.faq-head:hover{background:#fafaf8}
+.cat-badge{font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;flex-shrink:0;margin-top:2px;white-space:nowrap}
+.faq-q-text{flex:1;font-size:14px}
+.chev{font-size:10px;color:#aaa;margin-top:3px;flex-shrink:0;transition:transform 0.2s}
+.chev.open{transform:rotate(180deg)}
+.faq-body{display:none;padding:10px 14px 12px 14px;background:#f9f9f7;border-top:1px solid #e8e8e0}
+.faq-body.open{display:block}
+.faq-a{font-size:13px;color:#444;line-height:1.8;white-space:pre-wrap}
+.loading{padding:40px;text-align:center;color:#aaa;font-size:13px}
+.empty{padding:32px;text-align:center;color:#aaa;font-size:13px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>テスト制作 FAQ</h1>
+  <p>制作業務でよくある質問と回答集</p>
+</header>
+
+<div class="toolbar">
+  <input type="text" id="search" placeholder="キーワードで検索…" oninput="render()">
+  <select id="cat-filter" onchange="render()">
+    <option value="">すべてのカテゴリ</option>
+    <option value="flow">進行・スケジュール</option>
+    <option value="check">校正・チェック</option>
+    <option value="copy">素材文・著作権</option>
+    <option value="write">原稿執筆</option>
+    <option value="dtp">入稿・DTP</option>
+    <option value="answer">解答・許容</option>
+    <option value="other">その他</option>
+  </select>
+</div>
+
+<main>
+  <div class="count" id="count"></div>
+  <div id="list"><div class="loading">読み込み中…</div></div>
+</main>
+
+<script>
+const CAT_LABEL = {flow:"進行",check:"校正",copy:"著作権",write:"執筆",dtp:"入稿",answer:"解答",other:"その他"};
+const CAT_COLOR = {flow:"#185FA5",check:"#0F6E56",copy:"#854F0B",write:"#534AB7",dtp:"#993C1D",answer:"#3B6D11",other:"#5F5E5A"};
+const CAT_BG    = {flow:"#E6F1FB",check:"#E1F5EE",copy:"#FAEEDA",write:"#EEEDFE",dtp:"#FAECE7",answer:"#EAF3DE",other:"#F1EFE8"};
+
+// ★ faq_data.json と同じリポジトリに置く場合は相対パスのままでOK
+const DATA_URL = './faq_data.json';
+
+let faqs = [];
+let openIds = new Set();
+
+async function loadData() {
+  try {
+    const res = await fetch(DATA_URL);
+    if (!res.ok) throw new Error();
+    const d = await res.json();
+    faqs = d.faqs || [];
+  } catch(e) {
+    document.getElementById('list').innerHTML =
+      '<div class="empty">データの読み込みに失敗しました。faq_data.json が同じフォルダにあるか確認してください。</div>';
+    return;
+  }
+  render();
+}
+
+function render() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const cat = document.getElementById('cat-filter').value;
+  const items = faqs.filter(f =>
+    (!cat || f.cat === cat) &&
+    (!q || f.q.toLowerCase().includes(q) || f.a.toLowerCase().includes(q))
+  );
+  document.getElementById('count').textContent = items.length + ' 件';
+  const list = document.getElementById('list');
+  if (!items.length) {
+    list.innerHTML = '<div class="empty">該当する質問がありません</div>';
+    return;
+  }
+  list.innerHTML = items.map(f => {
+    const isOpen = openIds.has(f.id);
+    return `
+    <div class="faq-card">
+      <div class="faq-head" onclick="toggle(${f.id})">
+        <span class="cat-badge" style="background:${CAT_BG[f.cat]};color:${CAT_COLOR[f.cat]}">${CAT_LABEL[f.cat]}</span>
+        <span class="faq-q-text">${esc(f.q)}</span>
+        <span class="chev${isOpen?' open':''}">▼</span>
+      </div>
+      <div class="faq-body${isOpen?' open':''}">
+        <div class="faq-a">${esc(f.a)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggle(id) {
+  if (openIds.has(id)) openIds.delete(id); else openIds.add(id);
+  render();
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+loadData();
+</script>
+</body>
+</html>
